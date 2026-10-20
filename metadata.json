@@ -1,0 +1,6 @@
+{
+  "name": "غباء اصطناعي",
+  "description": "تطبيق محادثة كوميدي ساخر يتظاهر بالعبقرية ويرد بإجابات خاطئة ومضحكة بتفسيرات فلسفية عجيبة.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

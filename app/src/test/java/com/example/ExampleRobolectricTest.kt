@@ -112,4 +112,10 @@ class ExampleRobolectricTest {
         val backToDomain = entity.toDomain()
         assertEquals(domain, backToDomain)
     }
+
+    @Test
+    fun `launch MainActivity without crash`() {
+        val controller = org.robolectric.Robolectric.buildActivity(MainActivity::class.java)
+        controller.setup()
+    }
 }

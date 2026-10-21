@@ -25,9 +25,16 @@ import kotlinx.coroutines.launch
 @OptIn(ExperimentalCoroutinesApi::class)
 class ChatViewModel(
     application: Application,
-    private val repository: ChatRepository = ServiceLocator.provideChatRepository(application),
-    private val settingsDataStore: SettingsDataStore = ServiceLocator.provideSettingsDataStore(application)
+    private val repository: ChatRepository,
+    private val settingsDataStore: SettingsDataStore
 ) : AndroidViewModel(application) {
+
+    // Secondary constructor required by AndroidViewModelFactory reflection
+    constructor(application: Application) : this(
+        application,
+        ServiceLocator.provideChatRepository(application),
+        ServiceLocator.provideSettingsDataStore(application)
+    )
 
     val conversations: StateFlow<List<Conversation>> = repository.getConversations()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())

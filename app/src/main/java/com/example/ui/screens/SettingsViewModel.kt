@@ -15,9 +15,16 @@ import kotlinx.coroutines.launch
 
 class SettingsViewModel(
     application: Application,
-    private val settingsDataStore: SettingsDataStore = ServiceLocator.provideSettingsDataStore(application),
-    private val repository: ChatRepository = ServiceLocator.provideChatRepository(application)
+    private val settingsDataStore: SettingsDataStore,
+    private val repository: ChatRepository
 ) : AndroidViewModel(application) {
+
+    // Secondary constructor required by AndroidViewModelFactory reflection
+    constructor(application: Application) : this(
+        application,
+        ServiceLocator.provideSettingsDataStore(application),
+        ServiceLocator.provideChatRepository(application)
+    )
 
     val themeMode: StateFlow<ThemeMode> = settingsDataStore.themeMode
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), ThemeMode.DARK)

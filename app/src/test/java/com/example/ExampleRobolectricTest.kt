@@ -118,4 +118,12 @@ class ExampleRobolectricTest {
         val controller = org.robolectric.Robolectric.buildActivity(MainActivity::class.java)
         controller.setup()
     }
+
+    @Test
+    fun `verify Gemini and Grok model lists are configured`() {
+        assertTrue(AppConstants.GEMINI_MODELS.contains("gemini-3.8-flash"))
+        assertTrue(AppConstants.GEMINI_MODELS.contains("gemini-3.5-flash"))
+        assertTrue(AppConstants.GROK_MODELS.contains("grok-2-latest"))
+        assertTrue(AppConstants.GROK_MODELS.contains("grok-beta"))
+    }
 }

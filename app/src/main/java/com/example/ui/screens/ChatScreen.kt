@@ -87,6 +87,8 @@ fun ChatScreen(
     val inputText by viewModel.inputText.collectAsState()
     val isGenerating by viewModel.isGenerating.collectAsState()
     val isApiKeyConfigured by viewModel.isApiKeyConfigured.collectAsState()
+    val selectedProvider by viewModel.selectedProvider.collectAsState()
+    val activeModel by viewModel.activeModel.collectAsState()
 
     val listState = rememberLazyListState()
 
@@ -157,9 +159,15 @@ fun ChatScreen(
                                         overflow = TextOverflow.Ellipsis
                                     )
                                     Text(
-                                        text = if (isGenerating) "يكتب نظرية جديدة…" else "متصل بعبقرية فائقة",
+                                        text = if (isGenerating) {
+                                            "يكتب نظرية جديدة…"
+                                        } else {
+                                            "${selectedProvider.displayName} • $activeModel"
+                                        },
                                         style = MaterialTheme.typography.labelSmall,
-                                        color = if (isGenerating) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                                        color = if (isGenerating) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
                                     )
                                 }
                             }
@@ -229,7 +237,7 @@ fun ChatScreen(
                                 )
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Text(
-                                    text = "مفتاح Gemini API غير مسجل! انقر هنا لإضافته.",
+                                    text = "مفتاح ${selectedProvider.displayName} غير مسجل! انقر هنا لإضافته في الإعدادات.",
                                     style = MaterialTheme.typography.bodySmall,
                                     fontWeight = FontWeight.Bold,
                                     color = MaterialTheme.colorScheme.onErrorContainer,

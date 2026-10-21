@@ -6,6 +6,7 @@ import com.example.data.local.ConversationEntity
 import com.example.data.local.MessageDao
 import com.example.data.local.MessageEntity
 import com.example.data.local.SettingsDataStore
+import com.example.domain.model.AiProvider
 import com.example.domain.model.Conversation
 import com.example.domain.model.Message
 import com.example.domain.model.MessageStatus
@@ -21,7 +22,8 @@ import kotlinx.coroutines.withContext
 class ChatRepositoryImpl(
     private val conversationDao: ConversationDao,
     private val messageDao: MessageDao,
-    private val chatService: ChatService,
+    private val geminiChatService: ChatService,
+    private val grokChatService: ChatService,
     private val settingsDataStore: SettingsDataStore
 ) : ChatRepository {
 
@@ -101,15 +103,24 @@ class ChatRepositoryImpl(
         )
         val botMsgId = messageDao.insertMessage(pendingBotEntity)
 
-        // 3. Resolve API Key & Model
-        val customKey = settingsDataStore.customApiKey.first()
-        val buildConfigKey = try {
-            if (BuildConfig.GEMINI_API_KEY != "MY_GEMINI_API_KEY") BuildConfig.GEMINI_API_KEY else ""
-        } catch (e: Throwable) {
-            ""
+        // 3. Resolve Provider, API Key & Model
+        val provider = settingsDataStore.selectedProvider.first()
+        val (activeService, activeApiKey, activeModel) = resolveServiceAndCredentials(provider)
+
+        if (activeApiKey.isBlank()) {
+            val missingKeyError = if (provider == AiProvider.GROK) {
+                "مفتاح Grok (xAI) غير متوفر! يرجى إدخال مفتاح Grok في الإعدادات."
+            } else {
+                "مفتاح Gemini API غير متوفر! يرجى إدخاله في الإعدادات."
+            }
+            val failedBotEntity = pendingBotEntity.copy(
+                id = botMsgId,
+                status = MessageStatus.ERROR.name,
+                errorMessage = missingKeyError
+            )
+            messageDao.updateMessage(failedBotEntity)
+            return@withContext Result.failure(IllegalStateException(missingKeyError))
         }
-        val activeApiKey = if (customKey.isNotBlank()) customKey else buildConfigKey
-        val selectedModel = settingsDataStore.selectedModel.first()
 
         // 4. Retrieve conversation history for context (exclude the pending bot message)
         val historyEntities = messageDao.getRecentMessages(conversationId, limit = 20)
@@ -118,11 +129,11 @@ class ChatRepositoryImpl(
         val history = historyEntities.map { it.toDomain() }
 
         // 5. Call ChatService
-        val replyResult = chatService.generateReply(
+        val replyResult = activeService.generateReply(
             prompt = trimmedPrompt,
             conversationHistory = history,
             apiKey = activeApiKey,
-            modelName = selectedModel
+            modelName = activeModel
         )
 
         replyResult.fold(
@@ -168,25 +179,29 @@ class ChatRepositoryImpl(
         )
         messageDao.updateMessage(pendingEntity)
 
-        val customKey = settingsDataStore.customApiKey.first()
-        val buildConfigKey = try {
-            if (BuildConfig.GEMINI_API_KEY != "MY_GEMINI_API_KEY") BuildConfig.GEMINI_API_KEY else ""
-        } catch (e: Throwable) {
-            ""
+        val provider = settingsDataStore.selectedProvider.first()
+        val (activeService, activeApiKey, activeModel) = resolveServiceAndCredentials(provider)
+
+        if (activeApiKey.isBlank()) {
+            val errorText = "لم يتم ضبط مفتاح API لمزود الخدمة المختار ($provider)."
+            val failedBotEntity = pendingEntity.copy(
+                status = MessageStatus.ERROR.name,
+                errorMessage = errorText
+            )
+            messageDao.updateMessage(failedBotEntity)
+            return@withContext Result.failure(IllegalStateException(errorText))
         }
-        val activeApiKey = if (customKey.isNotBlank()) customKey else buildConfigKey
-        val selectedModel = settingsDataStore.selectedModel.first()
 
         val historyEntities = messageDao.getRecentMessages(conversationId, limit = 20)
             .filter { it.id != lastMessage.id && it.id != userPromptMsg.id }
             .sortedBy { it.timestamp }
         val history = historyEntities.map { it.toDomain() }
 
-        val replyResult = chatService.generateReply(
+        val replyResult = activeService.generateReply(
             prompt = userPromptMsg.content,
             conversationHistory = history,
             apiKey = activeApiKey,
-            modelName = selectedModel
+            modelName = activeModel
         )
 
         replyResult.fold(
@@ -209,5 +224,26 @@ class ChatRepositoryImpl(
                 Result.failure(error)
             }
         )
+    }
+
+    private suspend fun resolveServiceAndCredentials(provider: AiProvider): Triple<ChatService, String, String> {
+        return when (provider) {
+            AiProvider.GROK -> {
+                val grokKey = settingsDataStore.grokApiKey.first()
+                val grokModel = settingsDataStore.selectedGrokModel.first()
+                Triple(grokChatService, grokKey, grokModel)
+            }
+            AiProvider.GEMINI -> {
+                val customKey = settingsDataStore.customApiKey.first()
+                val buildConfigKey = try {
+                    if (BuildConfig.GEMINI_API_KEY != "MY_GEMINI_API_KEY") BuildConfig.GEMINI_API_KEY else ""
+                } catch (e: Throwable) {
+                    ""
+                }
+                val activeApiKey = if (customKey.isNotBlank()) customKey else buildConfigKey
+                val geminiModel = settingsDataStore.selectedGeminiModel.first()
+                Triple(geminiChatService, activeApiKey, geminiModel)
+            }
+        }
     }
 }

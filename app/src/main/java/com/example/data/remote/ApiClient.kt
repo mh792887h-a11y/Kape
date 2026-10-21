@@ -19,7 +19,6 @@ object ApiClient {
 
     private val okHttpClient: OkHttpClient by lazy {
         val loggingInterceptor = HttpLoggingInterceptor().apply {
-            // Log headers/body without exposing query params in logs
             level = HttpLoggingInterceptor.Level.BASIC
         }
 
@@ -38,5 +37,14 @@ object ApiClient {
             .addConverterFactory(MoshiConverterFactory.create(moshi))
             .build()
             .create(GeminiApiService::class.java)
+    }
+
+    val grokApiService: GrokApiService by lazy {
+        Retrofit.Builder()
+            .baseUrl(AppConstants.GROK_BASE_URL)
+            .client(okHttpClient)
+            .addConverterFactory(MoshiConverterFactory.create(moshi))
+            .build()
+            .create(GrokApiService::class.java)
     }
 }

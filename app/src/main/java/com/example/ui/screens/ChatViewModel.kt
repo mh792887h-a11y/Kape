@@ -6,10 +6,12 @@ import androidx.lifecycle.viewModelScope
 import com.example.BuildConfig
 import com.example.data.local.SettingsDataStore
 import com.example.di.ServiceLocator
+import com.example.domain.model.AiProvider
 import com.example.domain.model.Conversation
 import com.example.domain.model.Message
 import com.example.domain.model.MessageStatus
 import com.example.domain.repository.ChatRepository
+import com.example.util.AppConstants
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -56,16 +58,28 @@ class ChatViewModel(
     private val _isGenerating = MutableStateFlow(false)
     val isGenerating: StateFlow<Boolean> = _isGenerating.asStateFlow()
 
+    val selectedProvider: StateFlow<AiProvider> = settingsDataStore.selectedProvider
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), AiProvider.GEMINI)
+
+    val activeModel: StateFlow<String> = settingsDataStore.selectedModel
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), AppConstants.DEFAULT_GEMINI_MODEL)
+
     val isApiKeyConfigured: StateFlow<Boolean> = combine(
+        settingsDataStore.selectedProvider,
         settingsDataStore.customApiKey,
-        _currentConversationId
-    ) { customKey, _ ->
-        val buildConfigKey = try {
-            if (BuildConfig.GEMINI_API_KEY != "MY_GEMINI_API_KEY") BuildConfig.GEMINI_API_KEY else ""
-        } catch (e: Throwable) {
-            ""
+        settingsDataStore.grokApiKey
+    ) { provider, geminiKey, grokKey ->
+        when (provider) {
+            AiProvider.GROK -> grokKey.isNotBlank()
+            AiProvider.GEMINI -> {
+                val buildConfigKey = try {
+                    if (BuildConfig.GEMINI_API_KEY != "MY_GEMINI_API_KEY") BuildConfig.GEMINI_API_KEY else ""
+                } catch (e: Throwable) {
+                    ""
+                }
+                geminiKey.isNotBlank() || buildConfigKey.isNotBlank()
+            }
         }
-        customKey.isNotBlank() || buildConfigKey.isNotBlank()
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
 
     init {
@@ -112,7 +126,6 @@ class ChatViewModel(
         viewModelScope.launch {
             _isGenerating.value = true
             try {
-                // Ensure active conversation ID
                 var convoId = _currentConversationId.value
                 if (convoId == null) {
                     convoId = repository.createConversation("محادثة جديدة")
